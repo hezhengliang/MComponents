@@ -17,6 +17,7 @@
     "leafer-ui": "^2.0.3",
     "rbush": "^4.0.1",
     "tweakpane": "^4.0.5",
+    "unocss": "^66.6.8",
     "vue": "^3.5.30"
   },
   "devDependencies": {
