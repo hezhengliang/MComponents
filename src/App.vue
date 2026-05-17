@@ -9,10 +9,11 @@ import VirtualListDemo from './components/VirtualListDemo.vue'
 import RBrushDemo from './components/RBrushDemo.vue'
 import MsSelectDemo from './components/MdSelect.vue'
 import VirtualSelectDemo from './components/VirtualSelectDemo.vue'
+import VxeGridDemo from './components/VxeGridDemo.vue'
 
-type ViewMode = 'single' | 'multi' | 'large-data' | 'tree-demo' | 'tree-v2-demo' | 'virtual-list' | 'rbrush-demo' | 'ms-select' | 'virtual-select'
+type ViewMode = 'single' | 'multi' | 'large-data' | 'tree-demo' | 'tree-v2-demo' | 'virtual-list' | 'rbrush-demo' | 'ms-select' | 'virtual-select' | 'vxe-grid'
 
-const currentView = ref<ViewMode>('ms-select')
+const currentView = ref<ViewMode>('vxe-grid')
 
 function switchView(mode: ViewMode): void {
   currentView.value = mode
@@ -43,6 +44,13 @@ function switchView(mode: ViewMode): void {
         >
           🚀 Large Data
         </button> -->
+        <button
+          :class="{ active: currentView === 'vxe-grid' }"
+          @click="switchView('vxe-grid')"
+          style="background: #fff7e6; border-color: #fa8c16; color: #d46b08;"
+        >
+          📊 VxeGrid Range
+        </button>
         <button
           :class="{ active: currentView === 'tree-demo' }"
           @click="switchView('tree-demo')"
@@ -98,6 +106,7 @@ function switchView(mode: ViewMode): void {
       <RBrushDemo v-if="currentView === 'rbrush-demo'" />
       <MsSelectDemo v-if="currentView === 'ms-select'" />
       <VirtualSelectDemo v-if="currentView === 'virtual-select'" />
+      <VxeGridDemo v-if="currentView === 'vxe-grid'" />
     </main>
   </div>
 </template>

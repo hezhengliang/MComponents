@@ -32,6 +32,9 @@ importers:
       vue:
         specifier: ^3.5.30
         version: 3.5.30(typescript@5.6.3)
+      vxe-table:
+        specifier: ^4.18.13
+        version: 4.18.13(vue@3.5.30(typescript@5.6.3))
     devDependencies:
       '@vitejs/plugin-vue':
         specifier: ^6.0.5
@@ -717,6 +720,11 @@ packages:
   '@vueuse/shared@12.0.0':
     resolution: {integrity: sha512-3i6qtcq2PIio5i/vVYidkkcgvmTjCqrf26u+Fd4LhnbBmIT6FN8y6q/GJERp8lfcB9zVEfjdV0Br0443qZuJpw==}
 
+  '@vxe-ui/core@4.4.12':
+    resolution: {integrity: sha512-GWRo732PmlIHrdjysSSbOudQh3ROAHS6wJ+OfcymYkbI/WcPqK+An2da/7pNlRiUwsZInesmn9eMo2lxMSmCSg==}
+    peerDependencies:
+      vue: ^3.2.0
+
   acorn@8.16.0:
     resolution: {integrity: sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==}
     engines: {node: '>=0.4.0'}
@@ -774,6 +782,9 @@ packages:
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
+
+  dom-zindex@1.0.6:
+    resolution: {integrity: sha512-FKWIhiU96bi3xpP9ewRMgANsoVmMUBnMnmpCT6dPMZOunVYJQmJhSRruoI0XSPoHeIif3kyEuiHbFrOJwEJaEA==}
 
   duplexer@0.1.2:
     resolution: {integrity: sha512-jtD6YG370ZCIi/9GTaJKQxWTZD045+4R4hTk/x1UyoqadyJ9x9CgSi1RlVDQF8U2sxLLSnFkCaMihqljHIWgMg==}
@@ -1148,8 +1159,17 @@ packages:
       typescript:
         optional: true
 
+  vxe-pc-ui@4.14.12:
+    resolution: {integrity: sha512-STm56AglS9ozULK5wIpF9QVF+LWWY+G9lRG6zAi4HIFT/9tWHoNtbBpo3q8J5Kpz9x97FdYUOshBQEFkPe96Zw==}
+
+  vxe-table@4.18.13:
+    resolution: {integrity: sha512-aSq+Gl8cbRbDfja5G40ZOmr+uS9aaQ5pMyzsLX2e0gI2ybcUM20ARspX+U0ZMPaidFwt8FRLDJsKoeGxdy470Q==}
+
   webpack-virtual-modules@0.6.2:
     resolution: {integrity: sha512-66/V2i5hQanC51vBQKPH4aI8NMAcBW59FVBs+rC7eGHupMyfn34q7rZIE+ETlJ+XTevqfUhVVBgSUNSW2flEUQ==}
+
+  xe-utils@4.0.7:
+    resolution: {integrity: sha512-eV0+aYA+bOGCnl/48AOconhpoNKLvpBaIZykzWYzYU7URf07+q86FlDvbWz0WQZldgI60UzTCsAd4hBvvJNVpg==}
 
 snapshots:
 
@@ -1942,6 +1962,12 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
+  '@vxe-ui/core@4.4.12(vue@3.5.30(typescript@5.6.3))':
+    dependencies:
+      dom-zindex: 1.0.6
+      vue: 3.5.30(typescript@5.6.3)
+      xe-utils: 4.0.7
+
   acorn@8.16.0: {}
 
   alien-signals@1.0.13: {}
@@ -1982,6 +2008,8 @@ snapshots:
   destr@2.0.5: {}
 
   detect-libc@2.1.2: {}
+
+  dom-zindex@1.0.6: {}
 
   duplexer@0.1.2: {}
 
@@ -2366,4 +2394,18 @@ snapshots:
     optionalDependencies:
       typescript: 5.6.3
 
+  vxe-pc-ui@4.14.12(vue@3.5.30(typescript@5.6.3)):
+    dependencies:
+      '@vxe-ui/core': 4.4.12(vue@3.5.30(typescript@5.6.3))
+    transitivePeerDependencies:
+      - vue
+
+  vxe-table@4.18.13(vue@3.5.30(typescript@5.6.3)):
+    dependencies:
+      vxe-pc-ui: 4.14.12(vue@3.5.30(typescript@5.6.3))
+    transitivePeerDependencies:
+      - vue
+
   webpack-virtual-modules@0.6.2: {}
+
+  xe-utils@4.0.7: {}
