@@ -10,10 +10,12 @@ import RBrushDemo from './components/RBrushDemo.vue'
 import MsSelectDemo from './components/MdSelect.vue'
 import VirtualSelectDemo from './components/VirtualSelectDemo.vue'
 import VxeGridDemo from './components/VxeGridDemo.vue'
+import RulerTileDemo from './components/RulerTileDemo.vue'
+import FlowDesigner from './components/flow/FlowDesigner.vue'
 
-type ViewMode = 'single' | 'multi' | 'large-data' | 'tree-demo' | 'tree-v2-demo' | 'virtual-list' | 'rbrush-demo' | 'ms-select' | 'virtual-select' | 'vxe-grid'
+type ViewMode = 'single' | 'multi' | 'large-data' | 'tree-demo' | 'tree-v2-demo' | 'virtual-list' | 'rbrush-demo' | 'ms-select' | 'virtual-select' | 'vxe-grid' | 'ruler-tile' | 'flow-designer'
 
-const currentView = ref<ViewMode>('vxe-grid')
+const currentView = ref<ViewMode>('flow-designer')
 
 function switchView(mode: ViewMode): void {
   currentView.value = mode
@@ -44,6 +46,20 @@ function switchView(mode: ViewMode): void {
         >
           🚀 Large Data
         </button> -->
+        <button
+          :class="{ active: currentView === 'flow-designer' }"
+          @click="switchView('flow-designer')"
+          style="background: #ede9fe; border-color: #8b5cf6; color: #7c3aed;"
+        >
+          🔄 Flow设计器
+        </button>
+        <button
+          :class="{ active: currentView === 'ruler-tile' }"
+          @click="switchView('ruler-tile')"
+          style="background: #e6f7ff; border-color: #1890ff; color: #096dd9;"
+        >
+          📐 标尺+瓦片
+        </button>
         <button
           :class="{ active: currentView === 'vxe-grid' }"
           @click="switchView('vxe-grid')"
@@ -106,6 +122,8 @@ function switchView(mode: ViewMode): void {
       <RBrushDemo v-if="currentView === 'rbrush-demo'" />
       <MsSelectDemo v-if="currentView === 'ms-select'" />
       <VirtualSelectDemo v-if="currentView === 'virtual-select'" />
+      <RulerTileDemo v-if="currentView === 'ruler-tile'" />
+      <FlowDesigner v-if="currentView === 'flow-designer'" />
       <VxeGridDemo v-if="currentView === 'vxe-grid'" />
     </main>
   </div>
