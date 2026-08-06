@@ -1,5 +1,5 @@
 import type { Component } from 'vue'
-import type { ObjectSchema, AnyObject } from 'yup'
+import type { ZodTypeAny } from 'zod'
 
 export interface NodeContext {
   nodeId: string
@@ -24,7 +24,7 @@ export interface Effect {
 
 export interface FormMeta {
   fields: FieldSchema[]
-  validationSchema?: ObjectSchema<AnyObject>
+  validationSchema?: ZodTypeAny
   validateTrigger?: 'change' | 'blur' | 'submit'
   effects?: Effect[]
   formatOnInit?: (data: Record<string, any>) => Record<string, any>

@@ -22,6 +22,24 @@ export interface RulerOptions {
   showCrosshair?: boolean
   /** 每单位对应的像素数（如 1mm = 10px，则 pixelPerUnit = 10） */
   pixelPerUnit?: number
+  /** X 轴每单位对应的像素数，未设置时 fallback 到 pixelPerUnit */
+  pixelPerUnitX?: number
+  /** Y 轴每单位对应的像素数，未设置时 fallback 到 pixelPerUnit */
+  pixelPerUnitY?: number
+  /** 坐标起点 X（单位，对应图像左上角），默认 0 */
+  originX?: number
+  /** 坐标起点 Y（单位，对应图像左上角），默认 0 */
+  originY?: number
+  /** 坐标最大值 X（单位），超出后不再显示刻度，默认 Infinity */
+  maxX?: number
+  /** 坐标最大值 Y（单位），超出后不再显示刻度，默认 Infinity */
+  maxY?: number
+  /** 是否使用地图/工程图风格的 1-2-5 刻度序列，默认 false（2 的幂次） */
+  mapStyle?: boolean
+  /** 最小刻度线在屏幕上的目标间距（像素），默认 24 */
+  targetTickSpacing?: number
+  /** 大数字是否使用 k/M/G 等量级缩写，默认 true */
+  abbreviateLargeNumbers?: boolean
 }
 
 export interface RulerTransform {
@@ -41,23 +59,43 @@ interface TickInterval {
 
 /**
  * 计算合适的刻度间隔
- * 采用三级刻度系统：小刻度 / 中刻度 / 大刻度（带数字）
- * 类似 wafer/工程图纸的十进制刻度规则
+ * 支持两种风格：
+ * - 默认：2 的幂次（...0.25, 0.5, 1, 2, 4, 8...）
+ * - mapStyle：地图/工程图风格的 1-2-5 序列（...1, 2, 5, 10, 20, 50...）
  */
-function getTickInterval(scale: number, pixelPerUnit: number = 1): TickInterval {
+function getTickInterval(
+  scale: number,
+  pixelPerUnit: number = 1,
+  targetTickSpacing: number = 24,
+  mapStyle: boolean = false,
+): TickInterval {
   // 基础像素间隔 = 缩放比例 × 每单位像素数
   const pixelsPerUnit = scale * pixelPerUnit
+  const rawStep = targetTickSpacing / pixelsPerUnit
 
-  // 目标：最小刻度之间大约 30-40 像素
-  const targetSpacing = 32
-  const rawStep = targetSpacing / pixelsPerUnit
+  if (!mapStyle) {
+    // step 取 2 的幂次：1, 2, 4, 8...（最小为 1，不展示小数刻度）
+    const z = Math.round(Math.log2(rawStep))
+    const step = Math.max(1, Math.pow(2, z))
+    return { step, midEvery: 2, majorEvery: 4 }
+  }
 
-  // step 取 2 的幂次：1, 2, 4, 8, 16, 32, 64, 128...
-  const z = Math.round(Math.log2(rawStep))
-  const step = Math.max(1, Math.pow(2, z))
+  // 地图风格：1-2-5 序列，标签落在 5/10/20/50... 等整数上（最小 step 为 1）
+  const exp = Math.floor(Math.log10(rawStep))
+  const base = Math.pow(10, exp)
+  const ratio = rawStep / base
 
-  // 中刻度每 2 格，大刻度每 4 格
-  return { step, midEvery: 2, majorEvery: 4 }
+  let step: number
+  if (ratio < Math.sqrt(2)) {
+    step = base
+  } else if (ratio < Math.sqrt(10)) {
+    step = base * 2
+  } else {
+    step = base * 5
+  }
+
+  // 大刻度每 5 格，保证标签是 5/10/20/25/50... 这类整数
+  return { step: Math.max(1, step), midEvery: 2, majorEvery: 5 }
 }
 
 export class RulerCanvas {
@@ -99,6 +137,15 @@ export class RulerCanvas {
       unit: 'px',
       showCrosshair: true,
       pixelPerUnit: 1,
+      pixelPerUnitX: options.pixelPerUnitX ?? options.pixelPerUnit ?? 1,
+      pixelPerUnitY: options.pixelPerUnitY ?? options.pixelPerUnit ?? 1,
+      originX: 0,
+      originY: 0,
+      maxX: Infinity,
+      maxY: Infinity,
+      mapStyle: false,
+      targetTickSpacing: 24,
+      abbreviateLargeNumbers: true,
       ...options,
     }
 
@@ -299,12 +346,16 @@ export class RulerCanvas {
     ctx.stroke()
 
     const { scale, offsetX } = this.transform
-    const { pixelPerUnit } = this.options
-    const { step, midEvery, majorEvery } = getTickInterval(scale, pixelPerUnit)
+    const { pixelPerUnitX, originX, maxX, mapStyle, targetTickSpacing } = this.options
+    const pixelPerUnit = pixelPerUnitX
+    const origin = originX
+    const { step, midEvery, majorEvery } = getTickInterval(scale, pixelPerUnit, targetTickSpacing, mapStyle)
 
-    // 计算可见的数值范围，最小刻度值为 0（不显示负数）
-    const rawStart = Math.floor(-offsetX / (scale * pixelPerUnit) / step) * step
-    const rawEnd = Math.ceil((width - offsetX) / (scale * pixelPerUnit) / step) * step
+    // 计算可见的数值范围（v 为相对于 origin 的偏移），最小刻度值为图像原点 v=0
+    const vMin = -offsetX / (scale * pixelPerUnit)
+    const vMax = (width - offsetX) / (scale * pixelPerUnit)
+    const rawStart = Math.floor(vMin / step) * step
+    const rawEnd = Math.min((maxX - origin), Math.ceil(vMax / step) * step)
     const startValue = Math.max(0, rawStart)
     const endValue = Math.max(0, rawEnd)
 
@@ -315,6 +366,10 @@ export class RulerCanvas {
     ctx.font = this.options.font
     ctx.textAlign = 'center'
     ctx.textBaseline = 'top'
+
+    // 标签碰撞避让：用 measureText 计算宽度，重叠时跳过
+    let lastLabelRight = -Infinity
+    const labelGap = 6
 
     for (let v = startValue; v <= endValue; v += step) {
       const x = v * pixelPerUnit * scale + offsetX
@@ -350,22 +405,35 @@ export class RulerCanvas {
       ctx.lineTo(x, height - tickHeight)
       ctx.stroke()
 
-      // 刻度文字：按区域内像素间距动态决定显示级别，避免重叠
+      // 刻度文字：按区域内像素间距动态决定显示级别，并用碰撞避让防止重叠
+      let label: string | null = null
+      let labelFont = this.options.font
+      let labelColor = textColor
+      let labelY = 2
+
       if (isMajor) {
-        ctx.fillStyle = textColor
-        ctx.font = this.options.font
-        const label = formatRulerValue(v)
-        ctx.fillText(label, x, 2)
+        label = formatRulerValue(v + origin, this.options.abbreviateLargeNumbers)
       } else if (isMid && midSpacingPx >= 16) {
-        ctx.fillStyle = '#aaaaaa'
-        ctx.font = '9px Inter, -apple-system, sans-serif'
-        const label = formatRulerValue(v)
-        ctx.fillText(label, x, 3)
+        label = formatRulerValue(v + origin, this.options.abbreviateLargeNumbers)
+        labelFont = '9px Inter, -apple-system, sans-serif'
+        labelColor = '#aaaaaa'
+        labelY = 3
       } else if (!isMajor && !isMid && minorSpacingPx >= 20) {
-        ctx.fillStyle = '#777777'
-        ctx.font = '8px Inter, -apple-system, sans-serif'
-        const label = formatRulerValue(v)
-        ctx.fillText(label, x, 4)
+        label = formatRulerValue(v + origin, this.options.abbreviateLargeNumbers)
+        labelFont = '8px Inter, -apple-system, sans-serif'
+        labelColor = '#777777'
+        labelY = 4
+      }
+
+      if (label != null) {
+        ctx.font = labelFont
+        const textWidth = ctx.measureText(label).width
+        const left = x - textWidth / 2
+        if (left >= lastLabelRight + labelGap) {
+          ctx.fillStyle = labelColor
+          ctx.fillText(label, x, labelY)
+          lastLabelRight = left + textWidth
+        }
       }
     }
 
@@ -418,12 +486,16 @@ export class RulerCanvas {
     ctx.stroke()
 
     const { scale, offsetY } = this.transform
-    const { pixelPerUnit } = this.options
-    const { step, midEvery, majorEvery } = getTickInterval(scale, pixelPerUnit)
+    const { pixelPerUnitY, originY, maxY, mapStyle, targetTickSpacing } = this.options
+    const pixelPerUnit = pixelPerUnitY
+    const origin = originY
+    const { step, midEvery, majorEvery } = getTickInterval(scale, pixelPerUnit, targetTickSpacing, mapStyle)
 
-    // 计算可见的数值范围，最小刻度值为 0（不显示负数）
-    const rawStart = Math.floor(-offsetY / (scale * pixelPerUnit) / step) * step
-    const rawEnd = Math.ceil((height - offsetY) / (scale * pixelPerUnit) / step) * step
+    // 计算可见的数值范围（v 为相对于 origin 的偏移），最小刻度值为图像原点 v=0
+    const vMin = -offsetY / (scale * pixelPerUnit)
+    const vMax = (height - offsetY) / (scale * pixelPerUnit)
+    const rawStart = Math.floor(vMin / step) * step
+    const rawEnd = Math.min((maxY - origin), Math.ceil(vMax / step) * step)
     const startValue = Math.max(0, rawStart)
     const endValue = Math.max(0, rawEnd)
 
@@ -434,6 +506,10 @@ export class RulerCanvas {
     ctx.font = this.options.font
     ctx.textAlign = 'right'
     ctx.textBaseline = 'middle'
+
+    // 标签碰撞避让：旋转后文字高度约等于文本宽度
+    let lastLabelBottom = -Infinity
+    const labelGap = 6
 
     for (let v = startValue; v <= endValue; v += step) {
       const y = v * pixelPerUnit * scale + offsetY
@@ -469,37 +545,37 @@ export class RulerCanvas {
       ctx.lineTo(width - tickWidth, y)
       ctx.stroke()
 
-      // 刻度文字：按区域内像素间距动态决定显示级别，避免重叠
+      // 刻度文字：按区域内像素间距动态决定显示级别，并用碰撞避让防止重叠
+      let label: string | null = null
+      let labelFont = this.options.font
+      let labelColor = textColor
+
       if (isMajor) {
-        ctx.fillStyle = textColor
-        ctx.font = this.options.font
-        const label = formatRulerValue(v)
-        ctx.save()
-        ctx.translate(width / 2, y)
-        ctx.rotate(-Math.PI / 2)
-        ctx.textAlign = 'center'
-        ctx.fillText(label, 0, 0)
-        ctx.restore()
+        label = formatRulerValue(v + origin, this.options.abbreviateLargeNumbers)
       } else if (isMid && midSpacingPx >= 16) {
-        ctx.fillStyle = '#aaaaaa'
-        ctx.font = '9px Inter, -apple-system, sans-serif'
-        const label = formatRulerValue(v)
-        ctx.save()
-        ctx.translate(width / 2, y)
-        ctx.rotate(-Math.PI / 2)
-        ctx.textAlign = 'center'
-        ctx.fillText(label, 0, 0)
-        ctx.restore()
+        label = formatRulerValue(v + origin, this.options.abbreviateLargeNumbers)
+        labelFont = '9px Inter, -apple-system, sans-serif'
+        labelColor = '#aaaaaa'
       } else if (!isMajor && !isMid && minorSpacingPx >= 20) {
-        ctx.fillStyle = '#777777'
-        ctx.font = '8px Inter, -apple-system, sans-serif'
-        const label = formatRulerValue(v)
-        ctx.save()
-        ctx.translate(width / 2, y)
-        ctx.rotate(-Math.PI / 2)
-        ctx.textAlign = 'center'
-        ctx.fillText(label, 0, 0)
-        ctx.restore()
+        label = formatRulerValue(v + origin, this.options.abbreviateLargeNumbers)
+        labelFont = '8px Inter, -apple-system, sans-serif'
+        labelColor = '#777777'
+      }
+
+      if (label != null) {
+        ctx.font = labelFont
+        const textWidth = ctx.measureText(label).width
+        const top = y - textWidth / 2
+        if (top >= lastLabelBottom + labelGap) {
+          ctx.fillStyle = labelColor
+          ctx.save()
+          ctx.translate(width / 2, y)
+          ctx.rotate(-Math.PI / 2)
+          ctx.textAlign = 'center'
+          ctx.fillText(label, 0, 0)
+          ctx.restore()
+          lastLabelBottom = top + textWidth
+        }
       }
     }
 
@@ -544,13 +620,41 @@ export class RulerCanvas {
 /**
  * 格式化标尺数值
  * 类似 wafer/工程图纸的简洁标签格式
+ * 放大时隔变小后可能出现小数刻度，最多保留 10 位并去掉末尾 0
+ * 大数字使用 k/M/G 等量级缩写
  */
-function formatRulerValue(v: number): string {
+function formatRulerValue(v: number, abbreviate: boolean = true): string {
   if (v === 0) return '0'
-  if (Number.isInteger(v)) {
-    return String(Math.round(v))
+
+  const abs = Math.abs(v)
+  if (!abbreviate || abs < 1000) {
+    const fixed = v.toFixed(10)
+    const trimmed = fixed.replace(/\.?0+$/, '')
+    return trimmed || '0'
   }
-  // 保留一位小数，如果小数部分为 0 则显示整数
-  const fixed = v.toFixed(1)
-  return fixed.endsWith('.0') ? fixed.slice(0, -2) : fixed
+
+  const units = ['', 'k', 'M', 'G', 'T', 'P']
+  let tier = Math.min(Math.floor(Math.log10(abs) / 3), units.length - 1)
+  const scale = Math.pow(1000, tier)
+  let scaled = v / scale
+
+  // 999999 这类接近进位的数字显示为 1M 而非 1000k
+  if (Math.round(Math.abs(scaled)) >= 1000 && tier < units.length - 1) {
+    tier++
+    scaled /= 1000
+  }
+
+  // 根据数值大小选择合适的小数位数
+  let fixed: string
+  const absScaled = Math.abs(scaled)
+  if (absScaled >= 100) {
+    fixed = scaled.toFixed(0)
+  } else if (absScaled >= 10) {
+    fixed = scaled.toFixed(1)
+  } else {
+    fixed = scaled.toFixed(2)
+  }
+
+  const trimmed = fixed.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')
+  return trimmed + units[tier]
 }

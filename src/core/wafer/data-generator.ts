@@ -1,4 +1,5 @@
-import type { DieData, WaferMapData, BinColor, WaferConfig } from './types'
+import { CompactWaferGrid } from './compact-grid'
+import type { WaferMapData, BinColor, WaferConfig } from './types'
 
 /**
  * 默认 bin 颜色配置
@@ -81,12 +82,11 @@ export class WaferDataGenerator {
       edgeFailRate = 0.3,
     } = options
 
-    const dies: DieData[] = []
     const radius = diameter / 2
-    const diesPerRadius = Math.ceil(radius / dieSize)
+    const grid = CompactWaferGrid.fromConfig({ diameter, dieSize, edgeExclusion, notchAngle: 0 })
 
-    for (let x = -diesPerRadius; x <= diesPerRadius; x++) {
-      for (let y = -diesPerRadius; y <= diesPerRadius; y++) {
+    for (let x = grid.minX; x <= grid.minX + grid.width - 1; x++) {
+      for (let y = grid.minY; y <= grid.minY + grid.height - 1; y++) {
         const distance = Math.sqrt(x * x + y * y) * dieSize
 
         // 在晶圆范围内的 die
@@ -106,7 +106,7 @@ export class WaferDataGenerator {
             bin = Math.floor(this.random() * 4) + 2
           }
 
-          dies.push({ x, y, bin })
+          grid.set(x, y, bin)
         }
       }
     }
@@ -121,7 +121,7 @@ export class WaferDataGenerator {
         notchAngle: 0,
       },
       binColors: DEFAULT_BIN_COLORS,
-      dies,
+      dies: grid,
     }
   }
 

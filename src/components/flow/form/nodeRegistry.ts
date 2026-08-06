@@ -1,5 +1,5 @@
 import { markRaw } from 'vue'
-import * as yup from 'yup'
+import { z } from 'zod'
 import type { NodeRegistryEntry } from './types'
 
 import StartNode from '../nodes/StartNode.vue'
@@ -82,8 +82,8 @@ export const nodeRegistry: Record<string, NodeRegistryEntry> = {
     }),
     formMeta: {
       validateTrigger: 'change',
-      validationSchema: yup.object({
-        tableName: yup.string().required('请选择数据表'),
+      validationSchema: z.object({
+        tableName: z.string().min(1, '请选择数据表'),
       }),
       fields: [
         {
@@ -120,10 +120,10 @@ export const nodeRegistry: Record<string, NodeRegistryEntry> = {
     }),
     formMeta: {
       validateTrigger: 'blur',
-      validationSchema: yup.object({
-        leftTable: yup.string().required('请输入左表名'),
-        rightTable: yup.string().required('请输入右表名'),
-        onCondition: yup.string().required('请输入 ON 条件'),
+      validationSchema: z.object({
+        leftTable: z.string().min(1, '请输入左表名'),
+        rightTable: z.string().min(1, '请输入右表名'),
+        onCondition: z.string().min(1, '请输入 ON 条件'),
       }),
       fields: [
         {
@@ -172,8 +172,19 @@ export const nodeRegistry: Record<string, NodeRegistryEntry> = {
       selectFields: ['*'],
     }),
     formMeta: {
-      validationSchema: yup.object({
-        fromTable: yup.string().required('请输入查询表名'),
+      // 示例：数组字段校验 + 跨字段校验
+      validationSchema: z.object({
+        fromTable: z.string().min(1, '请输入查询表名'),
+        selectFields: z.array(z.string().min(1, '字段不能为空')).min(1, '至少选择一个字段'),
+      }).refine((data: any) => {
+        // 跨字段校验：如果 dialect 是 sqlite，fromTable 不能以数字开头
+        if (data.dialect === 'sqlite') {
+          return !/^\d/.test(data.fromTable)
+        }
+        return true
+      }, {
+        message: 'SQLite 表名不能以数字开头',
+        path: ['fromTable'],
       }),
       fields: [
         {
@@ -212,6 +223,16 @@ export const nodeRegistry: Record<string, NodeRegistryEntry> = {
       conditions: [],
     }),
     formMeta: {
+      // 示例：数组字段校验
+      validationSchema: z.object({
+        conditions: z.array(
+          z.object({
+            field: z.string().min(1, '请选择字段'),
+            operator: z.string().min(1, '请选择操作符'),
+            value: z.string().min(1, '请输入值'),
+          })
+        ).min(1, '至少添加一个条件'),
+      }),
       fields: [
         {
           name: 'conditions',
@@ -234,8 +255,8 @@ export const nodeRegistry: Record<string, NodeRegistryEntry> = {
       model: '',
     }),
     formMeta: {
-      validationSchema: yup.object({
-        label: yup.string().required('请输入节点名称'),
+      validationSchema: z.object({
+        label: z.string().min(1, '请输入节点名称'),
       }),
       fields: [
         {

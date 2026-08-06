@@ -22,6 +22,41 @@ const imageSize = ref({ width: 1460, height: 13520 })
 const isLoading = ref(false)
 const loadError = ref('')
 
+// 标尺/芯片坐标配置
+const rulerConfig = ref({
+  originX: 0,
+  originY: 0,
+  pixelPerUnitX: 1,
+  pixelPerUnitY: 1,
+  maxX: null as number | null,
+  maxY: null as number | null,
+  unit: 'mm',
+  mapStyle: true,
+  targetTickSpacing: 20,
+  abbreviateLargeNumbers: true,
+})
+
+// 把输入值转成有效数字，空字符串/非法输入返回 null
+function asValidNumber(v: number | string | null | undefined): number | null {
+  if (v === '' || v == null) return null
+  const n = typeof v === 'string' ? Number(v) : v
+  return Number.isFinite(n) ? n : null
+}
+
+// 根据最大值自动换算 X/Y 轴像素/单位比例
+function recalcPixelPerUnit(): void {
+  const cfg = rulerConfig.value
+  const img = imageSize.value
+  const maxX = asValidNumber(cfg.maxX)
+  const maxY = asValidNumber(cfg.maxY)
+  if (maxX != null) {
+    cfg.pixelPerUnitX = img.width / (maxX - cfg.originX)
+  }
+  if (maxY != null) {
+    cfg.pixelPerUnitY = img.height / (maxY - cfg.originY)
+  }
+}
+
 // 图片加载
 const imageUrl = ref('')
 const currentProvider = ref<'test' | 'url' | 'file'>('test')
@@ -37,9 +72,13 @@ const handleMouseMove = (e: MouseEvent) => {
 
   if (viewerRef.value) {
     const transform = viewerRef.value.getTransform()
-    const worldX = Math.round((x - transform.offsetX) / transform.scale)
-    const worldY = Math.round((y - transform.offsetY) / transform.scale)
-    mousePos.value = { x: worldX, y: worldY }
+    const { originX, originY, pixelPerUnitX, pixelPerUnitY } = rulerConfig.value
+    const chipX = originX + (x - transform.offsetX) / transform.scale / pixelPerUnitX
+    const chipY = originY + (y - transform.offsetY) / transform.scale / pixelPerUnitY
+    mousePos.value = {
+      x: Math.round(chipX),
+      y: Math.round(chipY),
+    }
   }
 }
 
@@ -106,26 +145,42 @@ async function initViewer(provider?: TileProvider, retry = 0): Promise<void> {
     tileProvider = new CanvasTileProvider(actualWidth, actualHeight, 256)
   }
 
+  // 根据最大值自动换算比例
+  recalcPixelPerUnit()
+
+  const cfg = rulerConfig.value
+  const maxX = asValidNumber(cfg.maxX)
+  const maxY = asValidNumber(cfg.maxY)
+  const rulerOptions: Record<string, unknown> = {
+    size: 24,
+    showCrosshair: true,
+    backgroundColor: '#2b2b2b',
+    tickColor: '#888888',
+    textColor: '#cccccc',
+    highlightColor: '#ff6b6b',
+    originX: cfg.originX,
+    originY: cfg.originY,
+    pixelPerUnitX: cfg.pixelPerUnitX,
+    pixelPerUnitY: cfg.pixelPerUnitY,
+    unit: cfg.unit,
+    mapStyle: cfg.mapStyle,
+    targetTickSpacing: cfg.targetTickSpacing,
+    abbreviateLargeNumbers: cfg.abbreviateLargeNumbers,
+  }
+  if (maxX != null) rulerOptions.maxX = maxX
+  if (maxY != null) rulerOptions.maxY = maxY
+
   viewerRef.value = new TileImageViewer(container, {
     width: rect.width,
     height: rect.height,
     imageWidth: actualWidth,
     imageHeight: actualHeight,
     tileSize: 256,
-    minZoom: 0.01,
-    maxZoom: 1.28,
+    minZoom: 0.001,
+    maxZoom: 1000,
     initialZoom: 1.28,
     enableRuler: showRuler.value,
-    rulerOptions: {
-      size: 24,
-      unit: 'mm',
-      pixelPerUnit: 1,
-      showCrosshair: true,
-      backgroundColor: '#2b2b2b',
-      tickColor: '#888888',
-      textColor: '#cccccc',
-      highlightColor: '#ff6b6b',
-    },
+    rulerOptions,
     showGrid: showGrid.value,
     debug: debug.value,
     tileProvider,
@@ -338,6 +393,105 @@ function setImageSize(w: number, h: number): void {
       </div>
     </div>
 
+    <!-- 标尺坐标配置 -->
+    <div class="toolbar coord-toolbar">
+      <div class="toolbar-group">
+        <span class="toolbar-label">坐标起点:</span>
+        <span class="coord-label">X</span>
+        <input
+          v-model.number="rulerConfig.originX"
+          type="number"
+          class="coord-input"
+          @change="initViewer()"
+        />
+        <span class="coord-label">Y</span>
+        <input
+          v-model.number="rulerConfig.originY"
+          type="number"
+          class="coord-input"
+          @change="initViewer()"
+        />
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">最大值:</span>
+        <span class="coord-label">X</span>
+        <input
+          v-model.number="rulerConfig.maxX"
+          type="number"
+          class="coord-input"
+          placeholder="∞"
+          @change="initViewer()"
+        />
+        <span class="coord-label">Y</span>
+        <input
+          v-model.number="rulerConfig.maxY"
+          type="number"
+          class="coord-input"
+          placeholder="∞"
+          @change="initViewer()"
+        />
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">像素/单位:</span>
+        <span class="coord-label">X</span>
+        <input
+          v-model.number="rulerConfig.pixelPerUnitX"
+          type="number"
+          class="coord-input"
+          min="0.001"
+          step="0.1"
+          @change="initViewer()"
+        />
+        <span class="coord-label">Y</span>
+        <input
+          v-model.number="rulerConfig.pixelPerUnitY"
+          type="number"
+          class="coord-input"
+          min="0.001"
+          step="0.1"
+          @change="initViewer()"
+        />
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">单位:</span>
+        <input
+          v-model="rulerConfig.unit"
+          type="text"
+          class="coord-input unit-input"
+          @change="initViewer()"
+        />
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">地图风格:</span>
+        <input
+          v-model="rulerConfig.mapStyle"
+          type="checkbox"
+          @change="initViewer()"
+        />
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">刻度密度:</span>
+        <input
+          v-model.number="rulerConfig.targetTickSpacing"
+          type="number"
+          class="coord-input"
+          min="1"
+          max="64"
+          step="1"
+          @change="initViewer()"
+        />
+        <span class="coord-label">px</span>
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">K/M 缩写:</span>
+        <input
+          v-model="rulerConfig.abbreviateLargeNumbers"
+          type="checkbox"
+          @change="initViewer()"
+        />
+      </div>
+    </div>
+
     <!-- 错误提示 -->
     <div v-if="loadError" class="error-bar">
       ⚠️ {{ loadError }}
@@ -354,7 +508,7 @@ function setImageSize(w: number, h: number): void {
 
     <!-- 底部状态栏 -->
     <div class="status-bar">
-      <span>位置: {{ mousePos.x }}, {{ mousePos.y }}</span>
+      <span>Chip 位置: {{ mousePos.x }}, {{ mousePos.y }}</span>
       <span>图像: {{ imageSize.width }}×{{ imageSize.height }}</span>
       <span>来源: {{ currentProvider === 'test' ? '测试瓦片' : currentProvider === 'url' ? '网络图片' : '本地文件' }}</span>
     </div>
@@ -385,6 +539,32 @@ function setImageSize(w: number, h: number): void {
 .image-toolbar {
   background: #1e1e32;
   border-bottom-color: #2a2a45;
+}
+
+.coord-toolbar {
+  background: #252538;
+  border-bottom-color: #333355;
+}
+
+.coord-label {
+  font-size: 11px;
+  color: #888;
+  margin-right: -2px;
+}
+
+.coord-input {
+  width: 56px;
+  padding: 4px 6px;
+  border: 1px solid #444466;
+  background: #1e1e32;
+  color: #ccc;
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.coord-input.unit-input {
+  width: 42px;
 }
 
 .toolbar-group {

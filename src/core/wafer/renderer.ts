@@ -1,5 +1,7 @@
 import { Leafer, Rect, Group, Ellipse, Text } from 'leafer-ui'
 import { WaferTooltip } from './tooltip'
+import { ensureCompactWaferGrid, calculateWaferStats } from './compact-grid'
+import type { CompactWaferGrid } from './compact-grid'
 import type {
   DieData,
   WaferMapData,
@@ -30,6 +32,7 @@ export class WaferRenderer {
   private leafer: Leafer | null = null
   private dieGroup: Group | null = null
   private data: WaferMapData
+  private grid: CompactWaferGrid
   private options: Required<RenderOptions>
   private eventHandlers: Map<keyof WaferEvents, Set<EventHandler<keyof WaferEvents>>> = new Map()
   private container: HTMLElement
@@ -45,6 +48,7 @@ export class WaferRenderer {
     }
 
     this.data = data
+    this.grid = ensureCompactWaferGrid(data.dies, data.config.dieSize)
     this.options = {
       width: 400,
       height: 400,
@@ -116,14 +120,14 @@ export class WaferRenderer {
   /**
    * 检查 die 是否在晶圆范围内
    */
-  private isDieInWafer(die: DieData): boolean {
+  private isDieInWafer(x: number, y: number): boolean {
     const { config } = this.data
     const { diePixelSize, radius } = this.layoutInfo
     const edgeExclusionPx = config.edgeExclusion * this.layoutInfo.scale
     const effectiveRadius = radius - edgeExclusionPx
     
-    const dieCenterX = die.x * diePixelSize
-    const dieCenterY = die.y * diePixelSize
+    const dieCenterX = x * diePixelSize
+    const dieCenterY = y * diePixelSize
     const distance = Math.sqrt(dieCenterX * dieCenterX + dieCenterY * dieCenterY)
     
     return distance + diePixelSize / 2 <= effectiveRadius
@@ -132,30 +136,8 @@ export class WaferRenderer {
   /**
    * 计算统计信息
    */
-  private calculateStats(dies: DieData[]): WaferStats {
-    const binCounts = new Map<number, number>()
-    let goodDies = 0
-    
-    for (const die of dies) {
-      const count = binCounts.get(die.bin) ?? 0
-      binCounts.set(die.bin, count + 1)
-      
-      if (die.bin === 1) {
-        goodDies++
-      }
-    }
-    
-    const totalDies = dies.length
-    const badDies = totalDies - goodDies
-    const yield_ = totalDies > 0 ? (goodDies / totalDies) * 100 : 0
-    
-    return {
-      totalDies,
-      goodDies,
-      badDies,
-      yield: Math.round(yield_ * 100) / 100,
-      binCounts,
-    }
+  private calculateStats(): WaferStats {
+    return calculateWaferStats(this.grid, this.data.config, this.layoutInfo.scale)
   }
 
   /**
@@ -254,16 +236,19 @@ export class WaferRenderer {
     }
     
     this.dieGroup = new Group()
+    const dieGroup = this.dieGroup
     const { diePixelSize, centerX, centerY } = this.layoutInfo
     const halfDieSize = diePixelSize / 2
     
-    for (const die of this.data.dies) {
-      if (!this.isDieInWafer(die)) {
-        continue
+    this.grid.forEachNonEmpty((dieX, dieY, bin) => {
+      if (!this.isDieInWafer(dieX, dieY)) {
+        return
       }
+
+      const die = this.grid.toDieData(dieX, dieY)
       
-      const x = centerX + die.x * diePixelSize - halfDieSize + this.options.dieGap / 2
-      const y = centerY + die.y * diePixelSize - halfDieSize + this.options.dieGap / 2
+      const x = centerX + dieX * diePixelSize - halfDieSize + this.options.dieGap / 2
+      const y = centerY + dieY * diePixelSize - halfDieSize + this.options.dieGap / 2
       const size = Math.max(0.5, diePixelSize - this.options.dieGap)
       
       const rect = new Rect({
@@ -271,7 +256,7 @@ export class WaferRenderer {
         y,
         width: size,
         height: size,
-        fill: this.getBinColor(die.bin),
+        fill: this.getBinColor(bin),
         cornerRadius: 1,
         stroke: this.options.showGrid ? 'rgba(0,0,0,0.2)' : undefined,
         strokeWidth: this.options.showGrid ? 0.5 : 0,
@@ -299,7 +284,7 @@ export class WaferRenderer {
         this.tooltip?.hide()
       })
       
-      this.dieGroup.add(rect)
+      dieGroup.add(rect)
 
       // 如果 die 足够大，显示 bin 数值
       if (size >= 12) {
@@ -307,17 +292,17 @@ export class WaferRenderer {
           x,
           y: y + size / 2 - 5,
           width: size,
-          text: String(die.bin),
-          fill: die.bin === 1 ? '#fff' : 'rgba(255,255,255,0.8)',
+          text: String(bin),
+          fill: bin === 1 ? '#fff' : 'rgba(255,255,255,0.8)',
           fontSize: Math.min(size * 0.5, 12),
           textAlign: 'center',
           fontWeight: 'bold',
         })
-        this.dieGroup.add(text)
+        dieGroup.add(text)
       }
-    }
+    })
     
-    this.leafer.add(this.dieGroup)
+    this.leafer.add(dieGroup)
   }
 
   /**
@@ -360,7 +345,7 @@ export class WaferRenderer {
     this.drawAxisLabels()
     
     // 触发统计更新
-    const stats = this.calculateStats(this.data.dies.filter(d => this.isDieInWafer(d)))
+    const stats = this.calculateStats()
     this.emit('stats-update', stats)
   }
 
@@ -404,6 +389,7 @@ export class WaferRenderer {
    */
   public updateData(data: WaferMapData): void {
     this.data = data
+    this.grid = ensureCompactWaferGrid(data.dies, data.config.dieSize)
     this.tooltip?.setBinColors(data.binColors)
     this.tooltip?.setWaferData(data)
     this.render()
@@ -436,7 +422,7 @@ export class WaferRenderer {
    * 获取当前统计信息
    */
   public getStats(): WaferStats {
-    return this.calculateStats(this.data.dies.filter(d => this.isDieInWafer(d)))
+    return this.calculateStats()
   }
 
   /**

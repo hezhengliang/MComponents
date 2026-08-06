@@ -2,6 +2,8 @@
  * Wafer Core 类型定义
  */
 
+import type { CompactWaferGrid } from './compact-grid'
+
 /** 晶圆 Die 数据 */
 export interface DieData {
   /** X 坐标（以 die 为单位） */
@@ -44,8 +46,11 @@ export interface WaferMapData {
   config: WaferConfig
   /** Bin 颜色定义 */
   binColors: BinColor[]
-  /** Die 数据数组 */
-  dies: DieData[]
+  /**
+   * Die 数据
+   * 推荐使用 CompactWaferGrid 以节省内存；保留 DieData[] 以兼容旧数据
+   */
+  dies: CompactWaferGrid | DieData[]
 }
 
 /** 统计信息 */

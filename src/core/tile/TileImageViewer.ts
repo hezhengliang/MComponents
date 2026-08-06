@@ -320,11 +320,23 @@ export class TileImageViewer {
   private initRuler(): void {
     if (!this.options.enableRuler) return
 
+    const rulerOptions = { ...this.options.rulerOptions }
+    const originX = rulerOptions.originX ?? 0
+    const originY = rulerOptions.originY ?? 0
+
+    // 如果给定最大值且未显式指定像素/单位比例，则按图像尺寸自动换算
+    if (rulerOptions.maxX != null && rulerOptions.pixelPerUnitX == null && rulerOptions.pixelPerUnit == null) {
+      rulerOptions.pixelPerUnitX = this.options.imageWidth / (rulerOptions.maxX - originX)
+    }
+    if (rulerOptions.maxY != null && rulerOptions.pixelPerUnitY == null && rulerOptions.pixelPerUnit == null) {
+      rulerOptions.pixelPerUnitY = this.options.imageHeight / (rulerOptions.maxY - originY)
+    }
+
     this.ruler = new RulerCanvas(this.container, {
       size: 24,
       unit: 'px',
       showCrosshair: true,
-      ...this.options.rulerOptions,
+      ...rulerOptions,
     })
 
     const contentWidth = this.options.width

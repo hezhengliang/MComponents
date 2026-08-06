@@ -12,8 +12,10 @@ import VirtualSelectDemo from './components/VirtualSelectDemo.vue'
 import VxeGridDemo from './components/VxeGridDemo.vue'
 import RulerTileDemo from './components/RulerTileDemo.vue'
 import FlowDesigner from './components/flow/FlowDesigner.vue'
+import TiffViewer from './components/TiffViewer.vue'
+import MathJsDemo from './components/MathJsDemo.vue'
 
-type ViewMode = 'single' | 'multi' | 'large-data' | 'tree-demo' | 'tree-v2-demo' | 'virtual-list' | 'rbrush-demo' | 'ms-select' | 'virtual-select' | 'vxe-grid' | 'ruler-tile' | 'flow-designer'
+type ViewMode = 'single' | 'multi' | 'large-data' | 'tree-demo' | 'tree-v2-demo' | 'virtual-list' | 'rbrush-demo' | 'ms-select' | 'virtual-select' | 'vxe-grid' | 'ruler-tile' | 'flow-designer' | 'tiff-viewer' | 'mathjs-demo'
 
 const currentView = ref<ViewMode>('flow-designer')
 
@@ -52,6 +54,13 @@ function switchView(mode: ViewMode): void {
           style="background: #ede9fe; border-color: #8b5cf6; color: #7c3aed;"
         >
           🔄 Flow设计器
+        </button>
+        <button
+          :class="{ active: currentView === 'tiff-viewer' }"
+          @click="switchView('tiff-viewer')"
+          style="background: #1e1e2e; border-color: #6366f1; color: #818cf8;"
+        >
+          🖼️ TIFF 查看器
         </button>
         <button
           :class="{ active: currentView === 'ruler-tile' }"
@@ -109,6 +118,13 @@ function switchView(mode: ViewMode): void {
         >
           🎯 VirtualSelect
         </button>
+        <button
+          :class="{ active: currentView === 'mathjs-demo' }"
+          @click="switchView('mathjs-demo')"
+          style="background: #fff7ed; border-color: #f97316; color: #ea580c;"
+        >
+          🧮 MathJS Min/Max
+        </button>
       </nav>
     </header>
     
@@ -125,6 +141,8 @@ function switchView(mode: ViewMode): void {
       <RulerTileDemo v-if="currentView === 'ruler-tile'" />
       <FlowDesigner v-if="currentView === 'flow-designer'" />
       <VxeGridDemo v-if="currentView === 'vxe-grid'" />
+      <TiffViewer v-if="currentView === 'tiff-viewer'" />
+      <MathJsDemo v-if="currentView === 'mathjs-demo'" />
     </main>
   </div>
 </template>

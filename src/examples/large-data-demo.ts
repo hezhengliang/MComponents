@@ -4,7 +4,8 @@
  */
 
 import { 
-  OptimizedMultiWaferRenderer, 
+  OptimizedMultiWaferRenderer,
+  CompactWaferGrid,
   type WaferMapData,
   type BinColor,
 } from '../core/wafer'
@@ -39,43 +40,54 @@ const BIN_COLORS: BinColor[] = [
 ]
 
 /**
- * 异步生成随机 die 数据（分块避免阻塞）
+ * 异步生成紧凑网格数据（分块避免阻塞）
  */
-async function generateDiesAsync(
-  count: number, 
+async function generateCompactGridAsync(
+  count: number,
   passRate: number,
+  dieSize: number,
   onProgress?: (current: number) => void
-): Promise<Array<{ x: number; y: number; bin: number }>> {
-  const dies: Array<{ x: number; y: number; bin: number }> = []
+): Promise<CompactWaferGrid> {
   const gridSize = Math.ceil(Math.sqrt(count))
   const halfGrid = gridSize / 2
+  const minX = -halfGrid
+  const minY = -halfGrid
+
+  const grid = new CompactWaferGrid({
+    minX,
+    minY,
+    width: gridSize,
+    height: gridSize,
+    dieSize,
+  })
+
   const batchSize = 1000 // 每批次生成1000个
-  
+
   for (let batch = 0; batch < count; batch += batchSize) {
     const end = Math.min(batch + batchSize, count)
-    
+
     for (let i = batch; i < end; i++) {
       const x = (i % gridSize) - halfGrid
       const y = Math.floor(i / gridSize) - halfGrid
-      
+
       // 随机 bin，基于良率
       const rand = Math.random()
       let bin = 1
       if (rand > passRate) {
         bin = Math.floor(Math.random() * 7) + 2 // 2-8
       }
-      
-      dies.push({ x, y, bin })
+
+      grid.set(x, y, bin)
     }
-    
+
     // 每批次完成后让出主线程
     if (onProgress) {
       onProgress(end)
     }
     await new Promise(resolve => setTimeout(resolve, 0))
   }
-  
-  return dies
+
+  return grid
 }
 
 /**
@@ -86,8 +98,13 @@ async function generateLargeWaferDataAsync(
   onProgress?: (current: number) => void
 ): Promise<WaferMapData> {
   const passRate = 0.85 + Math.random() * 0.1 // 85-95% 良率
-  const dies = await generateDiesAsync(CONFIG.DIES_PER_WAFER, passRate, onProgress)
-  
+  const dies = await generateCompactGridAsync(
+    CONFIG.DIES_PER_WAFER,
+    passRate,
+    CONFIG.DIE_SIZE,
+    onProgress
+  )
+
   return {
     waferId: `W${String(index + 1).padStart(3, '0')}`,
     lotId: 'LOT_LARGE_001',
@@ -132,10 +149,16 @@ export function generateLargeDataset(waferCount: number = 5): WaferMapData[] {
   
   for (let i = 0; i < waferCount; i++) {
     const passRate = 0.85 + Math.random() * 0.1
-    const dies: Array<{ x: number; y: number; bin: number }> = []
     const gridSize = Math.ceil(Math.sqrt(CONFIG.DIES_PER_WAFER))
     const halfGrid = gridSize / 2
-    
+    const dies = new CompactWaferGrid({
+      minX: -halfGrid,
+      minY: -halfGrid,
+      width: gridSize,
+      height: gridSize,
+      dieSize: CONFIG.DIE_SIZE,
+    })
+
     for (let j = 0; j < CONFIG.DIES_PER_WAFER; j++) {
       const x = (j % gridSize) - halfGrid
       const y = Math.floor(j / gridSize) - halfGrid
@@ -144,9 +167,9 @@ export function generateLargeDataset(waferCount: number = 5): WaferMapData[] {
       if (rand > passRate) {
         bin = Math.floor(Math.random() * 7) + 2
       }
-      dies.push({ x, y, bin })
+      dies.set(x, y, bin)
     }
-    
+
     data.push({
       waferId: `W${String(i + 1).padStart(3, '0')}`,
       lotId: 'LOT_LARGE_001',

@@ -26,6 +26,7 @@
     <div class="panel-body">
       <FormRenderer
         v-if="registryEntry?.formMeta.fields.length"
+        :key="node.id"
         :node-id="node.id"
         :node-type="node.type as string"
         :form-meta="registryEntry.formMeta"
@@ -81,12 +82,8 @@ const meta = computed(() => {
 const hasErrors = computed(() => {
   const schema = registryEntry.value?.formMeta.validationSchema
   if (!schema) return false
-  try {
-    schema.validateSync(props.node.data)
-    return false
-  } catch {
-    return true
-  }
+  const result = schema.safeParse(props.node.data)
+  return !result.success
 })
 
 function onFormUpdate(data: Record<string, any>) {

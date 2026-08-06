@@ -139,7 +139,7 @@ function onUpdateNodeData(nodeId: string, data: Record<string, any>) {
     const node = elements.value[idx] as Node
     elements.value = [
       ...elements.value.slice(0, idx),
-      { ...node, data: { ...node.data, ...data } },
+      { ...node, data },
       ...elements.value.slice(idx + 1),
     ]
   }

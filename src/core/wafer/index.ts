@@ -49,6 +49,11 @@ export type {
 } from './data-generator'
 
 export type {
+  CompactWaferGridOptions,
+  CompactWaferGridShape,
+} from './compact-grid'
+
+export type {
   WaferInstance,
 } from './manager'
 
@@ -69,6 +74,7 @@ export type {
 // 类导出
 export { WaferRenderer } from './renderer'
 export { WaferDataGenerator, DEFAULT_BIN_COLORS, DEFAULT_WAFER_CONFIG } from './data-generator'
+export { CompactWaferGrid, ensureCompactWaferGrid, calculateWaferStats } from './compact-grid'
 export { WaferManager, createWaferManager } from './manager'
 export { WaferTooltip, createWaferTooltip } from './tooltip'
 export { MultiWaferRenderer, createMultiWaferRenderer } from './multi-renderer'
